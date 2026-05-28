@@ -22,8 +22,11 @@ class CustomSearchField extends StatefulWidget {
   final String? createAnchorTerm;
   final FocusNode? focusNode;
   final CustomSearchFieldController? fieldController;
-
+  final Widget? suffixIcon;
   final void Function(String)? onCreate, onSubmit, onChanged;
+  final Color? fillColor;
+  final Color? textColor;
+  final Color? labelColor;
 
   const CustomSearchField({
     super.key,
@@ -43,15 +46,18 @@ class CustomSearchField extends StatefulWidget {
     this.createAnchorTerm,
     this.focusNode,
     this.fieldController,
-  });
+    this.suffixIcon,
+    this.fillColor,
+    this.textColor,
+    this.labelColor,
+  }); // <-- LO AÑADIMOS AL CONSTRUCTOR
 
   @override
   State<CustomSearchField> createState() => _CustomSearchFieldState();
 }
 
 class _CustomSearchFieldState extends State<CustomSearchField> {
-  late final TextEditingController _controller =
-      widget.controller ?? TextEditingController();
+  late final TextEditingController _controller = widget.controller ?? TextEditingController();
   Timer? _debounce;
   final FocusNode _internalFocusNode = FocusNode();
 
@@ -80,17 +86,14 @@ class _CustomSearchFieldState extends State<CustomSearchField> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       _internalFocusNode.requestFocus();
-      _controller.selection =
-          TextSelection.collapsed(offset: _controller.text.length);
+      _controller.selection = TextSelection.collapsed(offset: _controller.text.length);
     });
   }
 
-  Future<List<SearchFieldListItem<Map<String, dynamic>>>> _onSearchItems(
-      String query) async {
+  Future<List<SearchFieldListItem<Map<String, dynamic>>>> _onSearchItems(String query) async {
     if (_debounce?.isActive ?? false) _debounce?.cancel();
 
-    final completer =
-        Completer<List<SearchFieldListItem<Map<String, dynamic>>>>();
+    final completer = Completer<List<SearchFieldListItem<Map<String, dynamic>>>>();
 
     _debounce = Timer(const Duration(milliseconds: 0), () async {
       List<Map<String, dynamic>> results;
@@ -99,28 +102,16 @@ class _CustomSearchFieldState extends State<CustomSearchField> {
       } else {
         results = widget.options.where((item) {
           final name = (item['name'] ?? '').toString().toLowerCase();
-          final customField =
-              (item[widget.searchBy] ?? '').toString().toLowerCase();
-          return name.contains(query.toLowerCase()) ||
-              customField.contains(query.toLowerCase());
+          final customField = (item[widget.searchBy] ?? '').toString().toLowerCase();
+          return name.contains(query.toLowerCase()) || customField.contains(query.toLowerCase());
         }).toList();
       }
 
       final suggestions = results.map((item) {
-        return SearchFieldListItem<Map<String, dynamic>>(
-          (item['name'] ?? '').toString(),
-          item: item,
-          child: widget.itemBuilder != null
-              ? widget.itemBuilder!(item)
-              : _defaultItemBuilder(item),
-        );
+        return SearchFieldListItem<Map<String, dynamic>>((item['name'] ?? '').toString(), item: item, child: widget.itemBuilder != null ? widget.itemBuilder!(item) : _defaultItemBuilder(item));
       }).toList();
 
-      if (suggestions.isEmpty &&
-          widget.showCreateButtonIfNotFound &&
-          _controller.text.trim().isNotEmpty &&
-          widget.createAnchorTerm != null &&
-          _controller.text.trim() == widget.createAnchorTerm!.trim()) {
+      if (suggestions.isEmpty && widget.showCreateButtonIfNotFound && _controller.text.trim().isNotEmpty) {
         suggestions.add(
           SearchFieldListItem<Map<String, dynamic>>(
             _controller.text,
@@ -132,22 +123,30 @@ class _CustomSearchFieldState extends State<CustomSearchField> {
                 }
               },
               child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 decoration: BoxDecoration(
-                  color: Colors.blue.withOpacity(0.05),
-                  borderRadius: BorderRadius.circular(4),
-                  border: Border.all(color: Colors.blueAccent.withOpacity(0.5)),
+                  color: Theme.of(context).colorScheme.primary,
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Theme.of(context).colorScheme.primary.withOpacity(0.3),
+                      blurRadius: 8,
+                      offset: const Offset(0, 3),
+                    )
+                  ],
                 ),
                 child: Row(
                   children: [
-                    const Icon(Icons.add_circle_outline,
-                        color: Colors.blueAccent),
-                    const SizedBox(width: CustomSpacer.small),
+                    const Icon(Icons.add_circle_outline, color: Colors.white, size: 20),
+                    const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        'Crear ${widget.labelText} "${_controller.text}"',
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              color: Colors.blueAccent,
-                            ),
+                        'Crear ${widget.labelText.replaceAll('*', '').trim()} "${_controller.text}"',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                        ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
@@ -169,10 +168,7 @@ class _CustomSearchFieldState extends State<CustomSearchField> {
   Widget _defaultItemBuilder(Map<String, dynamic> item) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
-      child: Text(
-        '${item['name'] ?? ''}',
-        style: Theme.of(context).textTheme.bodyMedium,
-      ),
+      child: Text('${item['name'] ?? ''}', style: Theme.of(context).textTheme.bodyMedium),
     );
   }
 
@@ -185,22 +181,11 @@ class _CustomSearchFieldState extends State<CustomSearchField> {
   @override
   Widget build(BuildContext context) {
     // Build the local items list from widget.options
-    List<SearchFieldListItem<Map<String, dynamic>>> items =
-        widget.options.map((item) {
-      return SearchFieldListItem<Map<String, dynamic>>(
-        (item['name'] ?? '').toString(),
-        item: item,
-        child: widget.itemBuilder != null
-            ? widget.itemBuilder!(item)
-            : _defaultItemBuilder(item),
-      );
+    List<SearchFieldListItem<Map<String, dynamic>>> items = widget.options.map((item) {
+      return SearchFieldListItem<Map<String, dynamic>>((item['name'] ?? '').toString(), item: item, child: widget.itemBuilder != null ? widget.itemBuilder!(item) : _defaultItemBuilder(item));
     }).toList();
 
-    if (items.isEmpty &&
-        widget.showCreateButtonIfNotFound &&
-        _controller.text.trim().isNotEmpty &&
-        widget.createAnchorTerm != null &&
-        _controller.text.trim() == widget.createAnchorTerm!.trim()) {
+    if (items.isEmpty && widget.showCreateButtonIfNotFound && _controller.text.trim().isNotEmpty) {
       items.add(
         SearchFieldListItem<Map<String, dynamic>>(
           _controller.text,
@@ -212,22 +197,30 @@ class _CustomSearchFieldState extends State<CustomSearchField> {
               }
             },
             child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               decoration: BoxDecoration(
-                color: Colors.blue.withOpacity(0.05),
-                borderRadius: BorderRadius.circular(4),
-                border: Border.all(color: Colors.blueAccent.withOpacity(0.5)),
+                color: Theme.of(context).colorScheme.primary,
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: [
+                  BoxShadow(
+                    color: Theme.of(context).colorScheme.primary.withOpacity(0.3),
+                    blurRadius: 8,
+                    offset: const Offset(0, 3),
+                  )
+                ],
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.add_circle_outline,
-                      color: Colors.blueAccent),
-                  const SizedBox(width: CustomSpacer.small),
+                  const Icon(Icons.add_circle_outline, color: Colors.white, size: 20),
+                  const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      'Crear ${widget.labelText} "${_controller.text}"',
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: Colors.blueAccent,
-                          ),
+                      'Crear ${widget.labelText.replaceAll('*', '').trim()} "${_controller.text}"',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                      ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -239,6 +232,9 @@ class _CustomSearchFieldState extends State<CustomSearchField> {
         ),
       );
     }
+
+    final defaultTextColor = widget.textColor ?? (Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black87);
+    final defaultLabelColor = widget.labelColor ?? (Theme.of(context).brightness == Brightness.dark ? Colors.white70 : Colors.black54);
 
     return SearchField<Map<String, dynamic>>(
       controller: _controller,
@@ -252,24 +248,29 @@ class _CustomSearchFieldState extends State<CustomSearchField> {
         }
       },
       suggestions: items,
-      suggestionsDecoration: SuggestionDecoration(
-        color: Theme.of(context).cardColor,
-        hoverColor: Theme.of(context).cardColor,
-        borderRadius: BorderRadius.circular(8),
-        selectionColor: Theme.of(context).cardColor,
-      ),
+      suggestionsDecoration: SuggestionDecoration(color: Theme.of(context).cardColor, hoverColor: Theme.of(context).cardColor, borderRadius: BorderRadius.circular(8), selectionColor: Theme.of(context).cardColor),
       searchInputDecoration: SearchInputDecoration(
+        searchStyle: TextStyle(color: defaultTextColor),
         labelText: widget.labelText,
-        labelStyle: Theme.of(context).textTheme.bodyMedium,
+        labelStyle: TextStyle(color: defaultLabelColor),
         contentPadding: const EdgeInsets.all(16),
         filled: true,
-        fillColor: Theme.of(context).cardColor,
+        fillColor: widget.fillColor ?? Theme.of(context).cardColor,
         border: OutlineInputBorder(
-          borderSide: BorderSide(color: Theme.of(context).primaryColor),
+          borderSide: BorderSide(
+            color: widget.fillColor != null ? Colors.white.withOpacity(0.35) : Theme.of(context).primaryColor,
+          ),
           borderRadius: BorderRadius.circular(8),
         ),
+        enabledBorder: OutlineInputBorder(
+          borderSide: BorderSide(
+            color: widget.fillColor != null ? Colors.white.withOpacity(0.35) : Theme.of(context).primaryColor,
+          ),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        suffixIcon: widget.suffixIcon,
       ),
-      suggestionStyle: Theme.of(context).textTheme.bodyMedium,
+      suggestionStyle: TextStyle(color: defaultTextColor),
       onSearchTextChanged: _onSearchItems,
       hint: 'Buscar por nombre o ${widget.searchByText ?? widget.searchBy}...',
     );
