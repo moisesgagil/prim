@@ -2,7 +2,7 @@ import 'dart:typed_data';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:primware/API/pos.api.dart';
-import '../../../shared/format_date.dart';
+import 'close_cash_dates.dart';
 
 Future<Uint8List> generateCloseCashCartaTicket(Map<String, dynamic> data) async {
   final pdf = pw.Document();
@@ -22,8 +22,8 @@ Future<Uint8List> generateCloseCashCartaTicket(Map<String, dynamic> data) async 
   // Data fields
   final terminal = str(data['C_POS_ID']?['name'] ?? '---');
   final rep = str(data['SalesRep_ID']?['name'] ?? '---');
-  final String dateTrx = formatDateUI(str(data['DateTrx']));
-  final String dateFrom = formatDateUI(str(data['DateFrom']));
+  final String dateTrx = formatCloseCashDateUI(str(data['DateTrx']));
+  final String dateFrom = formatCloseCashDateUI(str(data['DateFrom']));
   final int totalOrders = (data['QtyOrders'] ?? 0) as int;
 
   final double taxBase = toDouble(data['TaxBaseAmt']);
@@ -42,7 +42,6 @@ Future<Uint8List> generateCloseCashCartaTicket(Map<String, dynamic> data) async 
   final List<dynamic> payments = (data['payments'] ?? []) as List<dynamic>;
 
   final baseTextStyle = pw.TextStyle(fontSize: 10);
-  final smallTextStyle = pw.TextStyle(fontSize: 8);
   final boldTextStyle = pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold);
   final titleStyle = pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold);
   final headerStyle = pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold, color: PdfColors.white);
@@ -50,7 +49,7 @@ Future<Uint8List> generateCloseCashCartaTicket(Map<String, dynamic> data) async 
   final theme = pw.ThemeData.withFont(base: pw.Font.helvetica(), bold: pw.Font.helveticaBold()).copyWith(defaultTextStyle: baseTextStyle);
 
   // Table Headers
-  pw.Widget _buildTableHeader(String text) {
+  pw.Widget buildTableHeader(String text) {
     return pw.Container(
       padding: const pw.EdgeInsets.all(6),
       color: PdfColors.blueGrey800,
@@ -60,7 +59,7 @@ Future<Uint8List> generateCloseCashCartaTicket(Map<String, dynamic> data) async 
   }
 
   // Cell formatters
-  pw.Widget _buildCell(String text, {pw.TextAlign align = pw.TextAlign.left, bool isBold = false}) {
+  pw.Widget buildCell(String text, {pw.TextAlign align = pw.TextAlign.left, bool isBold = false}) {
     return pw.Container(
       padding: const pw.EdgeInsets.all(6),
       alignment: align == pw.TextAlign.right ? pw.Alignment.centerRight : pw.Alignment.centerLeft,
@@ -177,7 +176,7 @@ Future<Uint8List> generateCloseCashCartaTicket(Map<String, dynamic> data) async 
                   child: pw.Table(
                     border: pw.TableBorder.all(color: PdfColors.grey300),
                     children: [
-                      pw.TableRow(children: [_buildTableHeader('ÓRDENES')]),
+                      pw.TableRow(children: [buildTableHeader('ÓRDENES')]),
                       pw.TableRow(
                         children: [
                           pw.Padding(
@@ -225,7 +224,7 @@ Future<Uint8List> generateCloseCashCartaTicket(Map<String, dynamic> data) async 
                   child: pw.Table(
                     border: pw.TableBorder.all(color: PdfColors.grey300),
                     children: [
-                      pw.TableRow(children: [_buildTableHeader('DEVOLUCIONES')]),
+                      pw.TableRow(children: [buildTableHeader('DEVOLUCIONES')]),
                       pw.TableRow(
                         children: [
                           pw.Padding(
@@ -303,7 +302,7 @@ Future<Uint8List> generateCloseCashCartaTicket(Map<String, dynamic> data) async 
                   pw.TableRow(
                     decoration: const pw.BoxDecoration(color: PdfColors.blueGrey800),
                     children: [
-                      _buildTableHeader('Método'),
+                      buildTableHeader('Método'),
                       pw.Container(
                         padding: const pw.EdgeInsets.all(6),
                         alignment: pw.Alignment.centerRight,
@@ -320,31 +319,16 @@ Future<Uint8List> generateCloseCashCartaTicket(Map<String, dynamic> data) async 
 
                     return pw.TableRow(
                       children: [
-                        _buildCell(tenderName),
-                        _buildCell(money(amt), align: pw.TextAlign.right),
+                        buildCell(tenderName),
+                        buildCell(money(amt), align: pw.TextAlign.right),
                       ],
                     );
-                  }).toList(),
+                  }),
                 ],
               ),
             ],
 
             pw.Spacer(),
-
-            // FOOTER SECTION
-            pw.Center(
-              child: pw.Column(
-                crossAxisAlignment: pw.CrossAxisAlignment.center,
-                children: [
-                  pw.Divider(color: PdfColors.grey300),
-                  pw.SizedBox(height: 8),
-                  if (hasHeaderValue(POSPrinter.footer1)) pw.Text(POSPrinter.footer1!, style: smallTextStyle),
-                  if (hasHeaderValue(POSPrinter.footer2)) pw.Text(POSPrinter.footer2!, style: smallTextStyle),
-                  if (hasHeaderValue(POSPrinter.footer3)) pw.Text(POSPrinter.footer3!, style: smallTextStyle),
-                  if (hasHeaderValue(POSPrinter.footer4)) pw.Text(POSPrinter.footer4!, style: smallTextStyle),
-                ],
-              ),
-            ),
           ],
         );
       },
