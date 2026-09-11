@@ -20,6 +20,7 @@ import '../../../shared/footer.dart';
 import 'my_order_print_generator.dart';
 import 'dart:ui';
 import '../../../shared/doc_type_chip.dart';
+import '../../../shared/scrollable_pill_row.dart';
 
 class OrderListPage extends StatefulWidget {
   const OrderListPage({super.key});
@@ -1027,65 +1028,57 @@ class _OrderListPageState extends State<OrderListPage> {
                   ),
 
                   if (_orders.isNotEmpty)
-                    SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      physics: const BouncingScrollPhysics(),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 4.0),
-                        child: Row(
-                          children: [
-                            Padding(
-                              padding: const EdgeInsets.only(
-                                right: 8.0,
-                                left: 16.0,
-                              ),
-                              child: FilterChip(
-                                label: const Text('Todos'),
-                                selected: selectedDocTypeFilter == null,
-                                selectedColor: Theme.of(context).primaryColor,
-                                checkmarkColor: Theme.of(
-                                  context,
-                                ).colorScheme.onPrimary,
-                                onSelected: (bool selected) {
-                                  setState(() {
-                                    selectedDocTypeFilter = null;
-                                  });
-                                },
-                              ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 4.0),
+                      child: ScrollablePillRow(
+                        padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.only(right: 8.0),
+                            child: FilterChip(
+                              label: const Text('Todos'),
+                              selected: selectedDocTypeFilter == null,
+                              selectedColor: Theme.of(context).primaryColor,
+                              checkmarkColor: Theme.of(context).colorScheme.onPrimary,
+                              onSelected: (bool selected) {
+                                setState(() {
+                                  selectedDocTypeFilter = null;
+                                });
+                              },
                             ),
-                            ..._orders
-                                .map(
-                                  (e) =>
-                                      e['doctypetarget']?['name']?.toString() ??
-                                      '',
-                                )
-                                .where((name) => name.isNotEmpty)
-                                .toSet()
-                                .map((docName) {
-                                  return Padding(
-                                    padding: const EdgeInsets.only(right: 8.0),
-                                    child: FilterChip(
-                                      label: Text(docName),
-                                      selected:
-                                          selectedDocTypeFilter == docName,
-                                      selectedColor: Theme.of(
-                                        context,
-                                      ).primaryColor,
-                                      checkmarkColor: Theme.of(
-                                        context,
-                                      ).colorScheme.onPrimary,
-                                      onSelected: (bool selected) {
-                                        setState(() {
-                                          selectedDocTypeFilter = selected
-                                              ? docName
-                                              : null;
-                                        });
-                                      },
-                                    ),
-                                  );
-                                }),
-                          ],
-                        ),
+                          ),
+                          ..._orders
+                              .map(
+                                (e) =>
+                                    e['doctypetarget']?['name']?.toString() ??
+                                    '',
+                              )
+                              .where((name) => name.isNotEmpty)
+                              .toSet()
+                              .map((docName) {
+                                return Padding(
+                                  padding: const EdgeInsets.only(right: 8.0),
+                                  child: FilterChip(
+                                    label: Text(docName),
+                                    selected:
+                                        selectedDocTypeFilter == docName,
+                                    selectedColor: Theme.of(
+                                      context,
+                                    ).primaryColor,
+                                    checkmarkColor: Theme.of(
+                                      context,
+                                    ).colorScheme.onPrimary,
+                                    onSelected: (bool selected) {
+                                      setState(() {
+                                        selectedDocTypeFilter = selected
+                                            ? docName
+                                            : null;
+                                      });
+                                    },
+                                  ),
+                                );
+                              }),
+                        ],
                       ),
                     ),
 
