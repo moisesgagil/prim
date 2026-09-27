@@ -718,8 +718,12 @@ class ProductRepository extends ChangeNotifier {
     if (persistPage) {
       final storageKey = _pageStorageKey(key);
       final existing = _box?.get(storageKey);
-      final timestampKey = existing is Map && existing.containsKey('updatedAt') ? 'updatedAt' : 'cachedAt';
-      final cachedAt = existing is Map ? existing[timestampKey] ?? DateTime.now().toIso8601String() : DateTime.now().toIso8601String();
+      final timestampKey = existing is Map && existing.containsKey('updatedAt')
+          ? 'updatedAt'
+          : 'cachedAt';
+      final cachedAt = existing is Map
+          ? existing[timestampKey] ?? DateTime.now().toIso8601String()
+          : DateTime.now().toIso8601String();
       final value = {
         'schema': _schemaVersion,
         'ids': page.records.map((item) => item['id']).whereType<int>().toList(),
@@ -728,7 +732,8 @@ class ProductRepository extends ChangeNotifier {
         'catalogScope': catalogScope,
         timestampKey: cachedAt,
       };
-      if (!_sameStoredValue(existing, value)) await _box?.put(storageKey, value);
+      if (!_sameStoredValue(existing, value))
+        await _box?.put(storageKey, value);
     }
   }
 
@@ -741,24 +746,29 @@ class ProductRepository extends ChangeNotifier {
     final id = product['id'];
     if (id is! int) return;
     final storageKey = _productStorageKey(
-        id,
-        versionID,
-        catalogScope: catalogScope,
-        warehouseID: warehouseID,
-      );
+      id,
+      versionID,
+      catalogScope: catalogScope,
+      warehouseID: warehouseID,
+    );
     final existing = _box?.get(storageKey);
-    final timestampKey = existing is Map && existing.containsKey('lastAccessedAt') ? 'lastAccessedAt' : 'cachedAt';
-    final cachedAt = existing is Map ? existing[timestampKey] ?? DateTime.now().toIso8601String() : DateTime.now().toIso8601String();
+    final timestampKey =
+        existing is Map && existing.containsKey('lastAccessedAt')
+        ? 'lastAccessedAt'
+        : 'cachedAt';
+    final cachedAt = existing is Map
+        ? existing[timestampKey] ?? DateTime.now().toIso8601String()
+        : DateTime.now().toIso8601String();
     final value = {
-        ...product,
-        'tax': product['tax'] is Map
-            ? Map<String, dynamic>.from(product['tax'] as Map)
-            : product['tax'],
-        'fromCache': false,
-        'stockLoading': false,
-        timestampKey: cachedAt,
-        'schema': _schemaVersion,
-      };
+      ...product,
+      'tax': product['tax'] is Map
+          ? Map<String, dynamic>.from(product['tax'] as Map)
+          : product['tax'],
+      'fromCache': false,
+      'stockLoading': false,
+      timestampKey: cachedAt,
+      'schema': _schemaVersion,
+    };
     if (!_sameStoredValue(existing, value)) await _box?.put(storageKey, value);
   }
 
@@ -834,7 +844,11 @@ class ProductRepository extends ChangeNotifier {
       final value = _box!.get(key);
       if (value is! Map) continue;
       final date = DateTime.tryParse(
-        (value['cachedAt'] ?? value['lastAccessedAt'] ?? value['updatedAt'] ?? '').toString(),
+        (value['cachedAt'] ??
+                value['lastAccessedAt'] ??
+                value['updatedAt'] ??
+                '')
+            .toString(),
       );
       if (date != null && date.isBefore(cutoff)) stale.add(key);
     }
