@@ -109,21 +109,25 @@ class DashboardKpiCard extends StatelessWidget {
           // Botón X en modo edición (esquina superior derecha, FUERA del contenedor)
           if (editMode && onRemove != null)
             Positioned(
-              top: -8,
-              right: -8,
+              top: -16,
+              right: -16,
               child: GestureDetector(
                 onTap: onRemove,
+                behavior: HitTestBehavior.opaque,
                 child: Container(
-                  width: 22,
-                  height: 22,
-                  decoration: BoxDecoration(
-                    color: Colors.red.shade400,
-                    shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 4),
-                    ],
+                  padding: const EdgeInsets.all(8), // Expande el área táctil invisiblemente
+                  child: Container(
+                    width: 22,
+                    height: 22,
+                    decoration: BoxDecoration(
+                      color: Colors.red.shade400,
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 4),
+                      ],
+                    ),
+                    child: const Icon(Icons.close, size: 13, color: Colors.white),
                   ),
-                  child: const Icon(Icons.close, size: 13, color: Colors.white),
                 ),
               ),
             ),
