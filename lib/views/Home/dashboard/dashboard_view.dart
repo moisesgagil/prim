@@ -729,7 +729,6 @@ class _DashboardPageState extends State<DashboardPage> {
                   // Drag handle para reordenar (No usamos ReorderableDragStartListener porque ReorderableWrap usa un toque prolongado)
                   _controlButton(
                     icon: Icons.drag_indicator,
-                    tooltip: 'Mantén presionado y arrastra',
                   ),
                   const SizedBox(width: 6),
                   // Ocultar gráfico
@@ -777,21 +776,32 @@ class _DashboardPageState extends State<DashboardPage> {
     VoidCallback? onTap,
   }) {
     final cs = Theme.of(context).colorScheme;
-    return GestureDetector(
-      onTap: onTap,
-      child: Tooltip(
-        message: tooltip ?? '',
-        child: Container(
-          padding: const EdgeInsets.all(7),
-          decoration: BoxDecoration(
-            color: color ?? cs.surfaceContainerHighest,
-            borderRadius: BorderRadius.circular(8),
-            boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.15), blurRadius: 4)],
-          ),
-          child: Icon(icon, size: 17, color: color != null ? Colors.white : cs.primary),
-        ),
+    
+    Widget content = Container(
+      padding: const EdgeInsets.all(7),
+      decoration: BoxDecoration(
+        color: color ?? cs.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(8),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.15), blurRadius: 4)],
       ),
+      child: Icon(icon, size: 17, color: color != null ? Colors.white : cs.primary),
     );
+
+    if (tooltip != null) {
+      content = Tooltip(
+        message: tooltip,
+        child: content,
+      );
+    }
+
+    if (onTap != null) {
+      return GestureDetector(
+        onTap: onTap,
+        child: content,
+      );
+    }
+
+    return content;
   }
 
   Widget _emptySection(String message) {
