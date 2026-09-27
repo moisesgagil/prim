@@ -32,6 +32,7 @@ class DashboardWidgetConfig {
   int order;
   double chartHeight; // altura persistida para gráficos (px)
   double chartWidthFactor; // ancho persistido para gráficos (ej. 1.0 = 100%, 0.5 = 50%)
+  String chartAlignment; // alineación: 'left', 'center', 'right'
 
   static const double defaultChartHeight = 420.0;
   static const double minChartHeight = 260.0;
@@ -44,6 +45,7 @@ class DashboardWidgetConfig {
     this.order = 0,
     this.chartHeight = defaultChartHeight,
     this.chartWidthFactor = 1.0,
+    this.chartAlignment = 'left',
   });
 
   Map<String, dynamic> toJson() => {
@@ -53,6 +55,7 @@ class DashboardWidgetConfig {
         'order': order,
         'chartHeight': chartHeight,
         'chartWidthFactor': chartWidthFactor,
+        'chartAlignment': chartAlignment,
       };
 
   factory DashboardWidgetConfig.fromJson(Map<String, dynamic> json) =>
@@ -66,6 +69,7 @@ class DashboardWidgetConfig {
         order: json['order'] as int? ?? 0,
         chartHeight: (json['chartHeight'] as num?)?.toDouble() ?? defaultChartHeight,
         chartWidthFactor: (json['chartWidthFactor'] as num?)?.toDouble() ?? 1.0,
+        chartAlignment: json['chartAlignment'] as String? ?? 'left',
       );
 }
 
@@ -198,10 +202,18 @@ class DashboardController extends ChangeNotifier {
     _save();
   }
 
-  void toggleChartWidth(String id) {
+  void setChartWidth(String id, double widthFactor) {
     final w = findById(id);
     if (w == null) return;
-    w.chartWidthFactor = w.chartWidthFactor == 1.0 ? 0.5 : 1.0;
+    w.chartWidthFactor = widthFactor.clamp(0.2, 1.0);
+    notifyListeners();
+    _save();
+  }
+
+  void setChartAlignment(String id, String alignment) {
+    final w = findById(id);
+    if (w == null) return;
+    w.chartAlignment = alignment;
     notifyListeners();
     _save();
   }

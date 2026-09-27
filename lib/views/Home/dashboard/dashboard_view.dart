@@ -61,14 +61,22 @@ class _KpiData {
 class _ResizableChartCard extends StatefulWidget {
   final Widget child;
   final double initialHeight;
+  final double initialWidthFactor;
+  final double parentWidth;
   final bool editMode;
+  final bool isMobile;
   final ValueChanged<double> onHeightChanged;
+  final ValueChanged<double> onWidthFactorChanged;
 
   const _ResizableChartCard({
     required this.child,
     required this.initialHeight,
+    required this.initialWidthFactor,
+    required this.parentWidth,
     required this.editMode,
+    required this.isMobile,
     required this.onHeightChanged,
+    required this.onWidthFactorChanged,
   });
 
   @override
@@ -77,21 +85,22 @@ class _ResizableChartCard extends StatefulWidget {
 
 class _ResizableChartCardState extends State<_ResizableChartCard> {
   late double _height;
-  bool _isDragging = false;
+  late double _widthFactor;
+  bool _isDraggingHeight = false;
+  bool _isDraggingWidth = false;
 
   @override
   void initState() {
     super.initState();
     _height = widget.initialHeight;
+    _widthFactor = widget.initialWidthFactor;
   }
 
   @override
   void didUpdateWidget(_ResizableChartCard old) {
     super.didUpdateWidget(old);
-    // Si no está siendo arrastrado, sincronizamos con el valor externo
-    if (!_isDragging && old.initialHeight != widget.initialHeight) {
-      _height = widget.initialHeight;
-    }
+    if (!_isDraggingHeight && old.initialHeight != widget.initialHeight) _height = widget.initialHeight;
+    if (!_isDraggingWidth && old.initialWidthFactor != widget.initialWidthFactor) _widthFactor = widget.initialWidthFactor;
   }
 
   @override
@@ -100,7 +109,7 @@ class _ResizableChartCardState extends State<_ResizableChartCard> {
     final editMode = widget.editMode;
 
     return AnimatedContainer(
-      duration: _isDragging ? Duration.zero : const Duration(milliseconds: 200),
+      duration: (_isDraggingHeight || _isDraggingWidth) ? Duration.zero : const Duration(milliseconds: 200),
       height: _height,
       width: double.infinity,
       decoration: BoxDecoration(
@@ -115,7 +124,7 @@ class _ResizableChartCardState extends State<_ResizableChartCard> {
           // Contenido del gráfico — ocupa toda la altura disponible
           Positioned.fill(child: widget.child),
 
-          // Handle de redimensionado: barra inferior en modo edición
+          // Handle de redimensionado de altura (inferior)
           if (editMode)
             Positioned(
               left: 0,
@@ -123,9 +132,7 @@ class _ResizableChartCardState extends State<_ResizableChartCard> {
               bottom: 0,
               child: GestureDetector(
                 behavior: HitTestBehavior.opaque,
-                onVerticalDragStart: (_) {
-                  setState(() => _isDragging = true);
-                },
+                onVerticalDragStart: (_) => setState(() => _isDraggingHeight = true),
                 onVerticalDragUpdate: (d) {
                   setState(() {
                     _height = (_height + d.delta.dy).clamp(
@@ -135,7 +142,7 @@ class _ResizableChartCardState extends State<_ResizableChartCard> {
                   });
                 },
                 onVerticalDragEnd: (_) {
-                  setState(() => _isDragging = false);
+                  setState(() => _isDraggingHeight = false);
                   widget.onHeightChanged(_height);
                 },
                 child: Container(
@@ -154,18 +161,58 @@ class _ResizableChartCardState extends State<_ResizableChartCard> {
                     child: Container(
                       width: 48,
                       height: 5,
-                      decoration: BoxDecoration(
-                        color: cs.primary.withOpacity(0.6),
-                        borderRadius: BorderRadius.circular(3),
-                      ),
+                      decoration: BoxDecoration(color: cs.primary.withOpacity(0.6), borderRadius: BorderRadius.circular(3)),
                     ),
                   ),
                 ),
               ),
             ),
 
-          // Indicador de altura durante el drag
-          if (_isDragging)
+          // Handle de redimensionado de ancho (derecho)
+          if (editMode && !widget.isMobile)
+            Positioned(
+              top: 0,
+              bottom: 0,
+              right: 0,
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onHorizontalDragStart: (_) => setState(() => _isDraggingWidth = true),
+                onHorizontalDragUpdate: (d) {
+                  setState(() {
+                    double currentPx = _widthFactor * widget.parentWidth;
+                    _widthFactor = ((currentPx + d.delta.dx) / widget.parentWidth).clamp(0.2, 1.0);
+                  });
+                  widget.onWidthFactorChanged(_widthFactor);
+                },
+                onHorizontalDragEnd: (_) {
+                  setState(() => _isDraggingWidth = false);
+                  widget.onWidthFactorChanged(_widthFactor);
+                },
+                child: Container(
+                  width: 28,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.centerLeft,
+                      end: Alignment.centerRight,
+                      colors: [
+                        cs.surface.withOpacity(0),
+                        cs.surface.withOpacity(0.95),
+                      ],
+                    ),
+                  ),
+                  child: Center(
+                    child: Container(
+                      height: 48,
+                      width: 5,
+                      decoration: BoxDecoration(color: cs.primary.withOpacity(0.6), borderRadius: BorderRadius.circular(3)),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+
+          // Indicador de altura/ancho durante el drag
+          if (_isDraggingHeight || _isDraggingWidth)
             Positioned(
               top: 8,
               left: 12,
@@ -176,7 +223,7 @@ class _ResizableChartCardState extends State<_ResizableChartCard> {
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Text(
-                  '${_height.toInt()} px',
+                  '${_height.toInt()} px  •  ${(_widthFactor * 100).toInt()}%',
                   style: const TextStyle(
                     color: Colors.white,
                     fontSize: 12,
@@ -695,54 +742,87 @@ class _DashboardPageState extends State<DashboardPage> {
 
     if (chartWidget == null) return SizedBox(key: ValueKey(cfg.id));
 
+    Widget chartBox = Stack(
+      clipBehavior: Clip.none,
+      children: [
+        // Gráfico con resize handle
+        _ResizableChartCard(
+          initialHeight: cfg.chartHeight,
+          initialWidthFactor: cfg.chartWidthFactor,
+          parentWidth: parentWidth,
+          editMode: editMode,
+          isMobile: isMobile,
+          onHeightChanged: (h) => _dashCtrl.setChartHeight(cfg.id, h),
+          onWidthFactorChanged: (w) => _dashCtrl.setChartWidth(cfg.id, w),
+          child: chartWidget,
+        ),
+
+        // Controles flotantes en modo edición (esquina superior derecha)
+        if (editMode)
+          Positioned(
+            top: 8,
+            right: 8,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (!isMobile) ...[
+                  _controlButton(
+                    icon: Icons.format_align_left,
+                    tooltip: 'Alinear a la izquierda',
+                    color: cfg.chartAlignment == 'left' ? Theme.of(context).colorScheme.primary : null,
+                    onTap: () => _dashCtrl.setChartAlignment(cfg.id, 'left'),
+                  ),
+                  const SizedBox(width: 6),
+                  _controlButton(
+                    icon: Icons.format_align_center,
+                    tooltip: 'Centrar',
+                    color: cfg.chartAlignment == 'center' ? Theme.of(context).colorScheme.primary : null,
+                    onTap: () => _dashCtrl.setChartAlignment(cfg.id, 'center'),
+                  ),
+                  const SizedBox(width: 6),
+                  _controlButton(
+                    icon: Icons.format_align_right,
+                    tooltip: 'Alinear a la derecha',
+                    color: cfg.chartAlignment == 'right' ? Theme.of(context).colorScheme.primary : null,
+                    onTap: () => _dashCtrl.setChartAlignment(cfg.id, 'right'),
+                  ),
+                  const SizedBox(width: 6),
+                ],
+                
+                // Drag handle para reordenar
+                _controlButton(
+                  icon: Icons.drag_indicator,
+                ),
+                const SizedBox(width: 6),
+                // Ocultar gráfico
+                _controlButton(
+                  icon: Icons.close,
+                  tooltip: 'Ocultar gráfico',
+                  color: Colors.red.shade400,
+                  onTap: () => _dashCtrl.hideWidget(cfg.id),
+                ),
+              ],
+            ),
+          ),
+      ],
+    );
+
+    if (!isMobile && cfg.chartAlignment != 'left') {
+      return Container(
+        key: ValueKey(cfg.id),
+        width: parentWidth,
+        alignment: cfg.chartAlignment == 'center' ? Alignment.center : Alignment.centerRight,
+        child: SizedBox(
+          width: itemWidth,
+          child: chartBox,
+        ),
+      );
+    }
+
     return SizedBox(
       key: ValueKey(cfg.id),
       width: itemWidth,
-      child: Stack(
-        clipBehavior: Clip.none,
-        children: [
-          // Gráfico con resize handle
-          _ResizableChartCard(
-            initialHeight: cfg.chartHeight,
-            editMode: editMode,
-            onHeightChanged: (h) => _dashCtrl.setChartHeight(cfg.id, h),
-            child: chartWidget,
-          ),
-
-          // Controles flotantes en modo edición (esquina superior derecha)
-          if (editMode)
-            Positioned(
-              top: 8,
-              right: 8,
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // Botón para alternar ancho (50% / 100%)
-                  if (!isMobile)
-                    _controlButton(
-                      icon: cfg.chartWidthFactor == 1.0 ? Icons.width_normal : Icons.width_wide,
-                      tooltip: cfg.chartWidthFactor == 1.0 ? 'Reducir a mitad' : 'Expandir al ancho total',
-                      onTap: () => _dashCtrl.toggleChartWidth(cfg.id),
-                    ),
-                  if (!isMobile) const SizedBox(width: 6),
-                  
-                  // Drag handle para reordenar (No usamos ReorderableDragStartListener porque ReorderableWrap usa un toque prolongado)
-                  _controlButton(
-                    icon: Icons.drag_indicator,
-                  ),
-                  const SizedBox(width: 6),
-                  // Ocultar gráfico
-                  _controlButton(
-                    icon: Icons.close,
-                    tooltip: 'Ocultar gráfico',
-                    color: Colors.red.shade400,
-                    onTap: () => _dashCtrl.hideWidget(cfg.id),
-                  ),
-                ],
-              ),
-            ),
-        ],
-      ),
+      child: chartBox,
     );
   }
 
