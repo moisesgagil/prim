@@ -463,7 +463,6 @@ class _DashboardPageState extends State<DashboardPage> {
                   child: IconButton(
                     icon: Icon(
                       editMode ? Icons.edit_off : Icons.edit_outlined,
-                      color: editMode ? Theme.of(context).colorScheme.primary : null,
                     ),
                     onPressed: _dashCtrl.toggleEditMode,
                   ),
@@ -481,10 +480,15 @@ class _DashboardPageState extends State<DashboardPage> {
                     label: const Text('Añadir widget'),
                   )
                 : null,
-            body: SafeArea(
-              child: _isLoading
-                  ? const DashboardSkeleton()
-                  : SingleChildScrollView(
+            body: GestureDetector(
+              onTap: () {
+                if (editMode) _dashCtrl.setEditMode(false);
+              },
+              behavior: HitTestBehavior.translucent,
+              child: SafeArea(
+                child: _isLoading
+                    ? const DashboardSkeleton()
+                    : SingleChildScrollView(
                       // ── El padding horizontal da "aire" pero NO hay maxWidth
                       padding: EdgeInsets.symmetric(
                         horizontal: isMobile ? 8 : 20,
@@ -530,12 +534,13 @@ class _DashboardPageState extends State<DashboardPage> {
                         ],
                       ),
                     ),
-            ),
-          );
-        },
-      ),
-    );
-  }
+                  ),
+                ),
+              );
+            },
+          ),
+        );
+      }
 
   // ─── Sección KPIs ─────────────────────────────────────────────────────────
   Widget _buildKpiSection(bool editMode, bool isMobile) {

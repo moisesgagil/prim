@@ -163,6 +163,12 @@ class DashboardController extends ChangeNotifier {
     notifyListeners();
   }
 
+  void setEditMode(bool value) {
+    if (_editMode == value) return;
+    _editMode = value;
+    notifyListeners();
+  }
+
   void hideWidget(String id) {
     final w = findById(id);
     if (w == null) return;
