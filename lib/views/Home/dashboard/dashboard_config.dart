@@ -30,14 +30,18 @@ class DashboardWidgetConfig {
   final DashboardWidgetType type;
   bool isVisible;
   int order;
-  bool isExpanded; // solo aplica a gráficos
+  double chartHeight; // altura persistida para gráficos (px)
+
+  static const double defaultChartHeight = 420.0;
+  static const double minChartHeight = 260.0;
+  static const double maxChartHeight = 800.0;
 
   DashboardWidgetConfig({
     required this.id,
     required this.type,
     this.isVisible = true,
     this.order = 0,
-    this.isExpanded = false,
+    this.chartHeight = defaultChartHeight,
   });
 
   Map<String, dynamic> toJson() => {
@@ -45,7 +49,7 @@ class DashboardWidgetConfig {
         'type': type.name,
         'isVisible': isVisible,
         'order': order,
-        'isExpanded': isExpanded,
+        'chartHeight': chartHeight,
       };
 
   factory DashboardWidgetConfig.fromJson(Map<String, dynamic> json) =>
@@ -57,7 +61,7 @@ class DashboardWidgetConfig {
         ),
         isVisible: json['isVisible'] as bool? ?? true,
         order: json['order'] as int? ?? 0,
-        isExpanded: json['isExpanded'] as bool? ?? false,
+        chartHeight: (json['chartHeight'] as num?)?.toDouble() ?? defaultChartHeight,
       );
 }
 
@@ -65,7 +69,7 @@ class DashboardWidgetConfig {
 // Controlador del dashboard (ChangeNotifier)
 // ─────────────────────────────────────────────
 class DashboardController extends ChangeNotifier {
-  static const String _prefsKey = 'dashboard_config_v1';
+  static const String _prefsKey = 'dashboard_config_v2';
 
   bool _editMode = false;
   bool get editMode => _editMode;
@@ -171,11 +175,16 @@ class DashboardController extends ChangeNotifier {
     _save();
   }
 
-  void toggleExpanded(String id) {
+  /// Actualiza la altura de un gráfico y persiste (sin notifyListeners para
+  /// no re-renderizar el árbol completo durante el drag — el widget lo gestiona
+  /// localmente y solo llama aquí al soltar).
+  void setChartHeight(String id, double height) {
     final w = findById(id);
     if (w == null) return;
-    w.isExpanded = !w.isExpanded;
-    notifyListeners();
+    w.chartHeight = height.clamp(
+      DashboardWidgetConfig.minChartHeight,
+      DashboardWidgetConfig.maxChartHeight,
+    );
     _save();
   }
 

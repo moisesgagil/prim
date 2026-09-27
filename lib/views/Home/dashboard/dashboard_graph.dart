@@ -327,8 +327,7 @@ class _GraphicBarMetricCardState extends State<GraphicBarMetricCard> {
                 ),
               ),
             const SizedBox(height: CustomSpacer.large),
-            SizedBox(
-              height: 300,
+            Expanded(
               child: (isLoading && rawChartData.isEmpty)
                   ? Builder(builder: (ctx) {
                       final bool isDark = Theme.of(ctx).brightness == Brightness.dark;
@@ -938,8 +937,7 @@ class _GraphicPieMetricCardState extends State<GraphicPieMetricCard> {
                 ),
               ),
             const SizedBox(height: CustomSpacer.large),
-            SizedBox(
-              height: 340,
+            Expanded(
               child: (isLoading && rawChartData.isEmpty)
                   ? Builder(builder: (ctx) {
                       final bool isDark = Theme.of(ctx).brightness == Brightness.dark;

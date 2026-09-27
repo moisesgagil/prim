@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_localization/flutter_localization.dart';
-import 'package:primware/shared/custom_container.dart';
 import 'package:primware/shared/logo_pill.dart';
 import 'package:primware/shared/theme_switcher_controller.dart';
 import 'package:primware/views/Home/dashboard/dashboard_skeleton.dart';
@@ -55,6 +54,145 @@ class _KpiData {
   };
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Widget de gráfico redimensionable por arrastre
+// ─────────────────────────────────────────────────────────────────────────────
+class _ResizableChartCard extends StatefulWidget {
+  final Widget child;
+  final double initialHeight;
+  final bool editMode;
+  final ValueChanged<double> onHeightChanged;
+
+  const _ResizableChartCard({
+    required this.child,
+    required this.initialHeight,
+    required this.editMode,
+    required this.onHeightChanged,
+  });
+
+  @override
+  State<_ResizableChartCard> createState() => _ResizableChartCardState();
+}
+
+class _ResizableChartCardState extends State<_ResizableChartCard> {
+  late double _height;
+  bool _isDragging = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _height = widget.initialHeight;
+  }
+
+  @override
+  void didUpdateWidget(_ResizableChartCard old) {
+    super.didUpdateWidget(old);
+    // Si no está siendo arrastrado, sincronizamos con el valor externo
+    if (!_isDragging && old.initialHeight != widget.initialHeight) {
+      _height = widget.initialHeight;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final editMode = widget.editMode;
+
+    return AnimatedContainer(
+      duration: _isDragging ? Duration.zero : const Duration(milliseconds: 200),
+      height: _height,
+      width: double.infinity,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        border: editMode
+            ? Border.all(color: cs.primary.withOpacity(0.4), width: 1.5)
+            : null,
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Stack(
+        children: [
+          // Contenido del gráfico — ocupa toda la altura disponible
+          Positioned.fill(child: widget.child),
+
+          // Handle de redimensionado: barra inferior en modo edición
+          if (editMode)
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onVerticalDragStart: (_) {
+                  setState(() => _isDragging = true);
+                },
+                onVerticalDragUpdate: (d) {
+                  setState(() {
+                    _height = (_height + d.delta.dy).clamp(
+                      DashboardWidgetConfig.minChartHeight,
+                      DashboardWidgetConfig.maxChartHeight,
+                    );
+                  });
+                },
+                onVerticalDragEnd: (_) {
+                  setState(() => _isDragging = false);
+                  widget.onHeightChanged(_height);
+                },
+                child: Container(
+                  height: 28,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        cs.surface.withOpacity(0),
+                        cs.surface.withOpacity(0.95),
+                      ],
+                    ),
+                  ),
+                  child: Center(
+                    child: Container(
+                      width: 48,
+                      height: 5,
+                      decoration: BoxDecoration(
+                        color: cs.primary.withOpacity(0.6),
+                        borderRadius: BorderRadius.circular(3),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+
+          // Indicador de altura durante el drag
+          if (_isDragging)
+            Positioned(
+              top: 8,
+              right: 12,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: cs.primary,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  '${_height.toInt()} px',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Página principal del Dashboard
+// ─────────────────────────────────────────────────────────────────────────────
 class DashboardPage extends StatefulWidget {
   const DashboardPage({super.key});
 
@@ -109,24 +247,17 @@ class _DashboardPageState extends State<DashboardPage> {
 
     if (Charts.salesYTDBySalesRep != null && ytdData.isEmpty) {
       futures.add(
-        _salesYTDBySalesRepLoader(context: context, offset: 0).then((value) {
-          ytdData = value;
-        }),
+        _salesYTDBySalesRepLoader(context: context, offset: 0).then((v) => ytdData = v),
       );
     }
-
     if (Charts.salesPerDayByProductCategory != null && productCategoryData.isEmpty) {
       futures.add(
-        _salesPerDayByProductCategoryLoader(context: context, offset: 0).then((value) {
-          productCategoryData = value;
-        }),
+        _salesPerDayByProductCategoryLoader(context: context, offset: 0)
+            .then((v) => productCategoryData = v),
       );
     }
 
-    if (futures.isNotEmpty) {
-      await Future.wait(futures);
-    }
-
+    if (futures.isNotEmpty) await Future.wait(futures);
     if (!mounted) return;
 
     setState(() {
@@ -136,7 +267,7 @@ class _DashboardPageState extends State<DashboardPage> {
     });
   }
 
-  // ─── Helpers de localización de meses ─────────────────────────────────────
+  // ─── Helper: nombre de mes localizado ─────────────────────────────────────
   String _monthName(int month, String lang) {
     const es = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
     const en = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
@@ -164,7 +295,6 @@ class _DashboardPageState extends State<DashboardPage> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Handle
                   Center(
                     child: Container(
                       width: 40,
@@ -217,9 +347,7 @@ class _DashboardPageState extends State<DashboardPage> {
                       children: hiddenKpis.map((cfg) {
                         final data = _KpiData.mock[cfg.id];
                         return GestureDetector(
-                          onTap: () {
-                            _dashCtrl.showWidget(cfg.id);
-                          },
+                          onTap: () => _dashCtrl.showWidget(cfg.id),
                           child: Container(
                             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                             decoration: BoxDecoration(
@@ -251,13 +379,9 @@ class _DashboardPageState extends State<DashboardPage> {
                       spacing: 10,
                       runSpacing: 10,
                       children: hiddenCharts.map((cfg) {
-                        final label = cfg.id == WidgetId.chartSalesYTD
-                            ? 'Ventas YTD por Rep.'
-                            : 'Ventas por Categoría';
+                        final label = cfg.id == WidgetId.chartSalesYTD ? 'Ventas YTD por Rep.' : 'Ventas por Categoría';
                         return GestureDetector(
-                          onTap: () {
-                            _dashCtrl.showWidget(cfg.id);
-                          },
+                          onTap: () => _dashCtrl.showWidget(cfg.id),
                           child: Container(
                             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                             decoration: BoxDecoration(
@@ -282,7 +406,6 @@ class _DashboardPageState extends State<DashboardPage> {
                   ],
 
                   const SizedBox(height: 16),
-                  // Botón reset
                   OutlinedButton.icon(
                     onPressed: () {
                       _dashCtrl.resetToDefaults();
@@ -298,15 +421,6 @@ class _DashboardPageState extends State<DashboardPage> {
         );
       },
     );
-  }
-
-  // ─── Ancho máximo del contenedor según tamaño de pantalla ─────────────────
-  double _maxContainerWidth(double screenWidth) {
-    if (screenWidth >= 1400) return 1320;
-    if (screenWidth >= 1100) return 1040;
-    if (screenWidth >= 900) return 860;
-    if (screenWidth >= 700) return screenWidth - 48;
-    return screenWidth; // móvil: sin límite lateral
   }
 
   // ─── Build ─────────────────────────────────────────────────────────────────
@@ -343,19 +457,14 @@ class _DashboardPageState extends State<DashboardPage> {
             appBar: AppBar(
               title: Text(AppLocale.dashboard.getString(context)),
               actions: [
-                // Botón Modo Edición
                 Tooltip(
                   message: editMode ? 'Salir del modo edición' : 'Personalizar dashboard',
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 200),
-                    margin: const EdgeInsets.only(right: 4),
-                    child: IconButton(
-                      icon: Icon(
-                        editMode ? Icons.edit_off : Icons.edit_outlined,
-                        color: editMode ? Theme.of(context).colorScheme.primary : null,
-                      ),
-                      onPressed: _dashCtrl.toggleEditMode,
+                  child: IconButton(
+                    icon: Icon(
+                      editMode ? Icons.edit_off : Icons.edit_outlined,
+                      color: editMode ? Theme.of(context).colorScheme.primary : null,
                     ),
+                    onPressed: _dashCtrl.toggleEditMode,
                   ),
                 ),
                 const ThemeToggleIconButton(),
@@ -364,8 +473,6 @@ class _DashboardPageState extends State<DashboardPage> {
             ),
             bottomNavigationBar: const CustomFooter(),
             drawer: const MenuDrawer(),
-
-            // FAB: Añadir Widgets (solo en modo edición)
             floatingActionButton: editMode
                 ? FloatingActionButton.extended(
                     onPressed: _showAddWidgetSheet,
@@ -373,54 +480,53 @@ class _DashboardPageState extends State<DashboardPage> {
                     label: const Text('Añadir widget'),
                   )
                 : null,
-
             body: SafeArea(
               child: _isLoading
                   ? const DashboardSkeleton()
                   : SingleChildScrollView(
-                      child: Center(
-                        child: CustomContainer(
-                          maxWidthContainer: _maxContainerWidth(MediaQuery.of(context).size.width),
-                          child: Padding(
-                            padding: const EdgeInsets.all(8.0),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                // ── Botón Mis Órdenes ──────────────────────
-                                SizedBox(
-                                  width: double.infinity,
-                                  child: TextButton.icon(
-                                    style: TextButton.styleFrom(
-                                      padding: const EdgeInsets.symmetric(vertical: 16),
-                                      backgroundColor: Theme.of(context).colorScheme.secondary.withOpacity(0.1),
-                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                                    ),
-                                    icon: Icon(Icons.list_alt, size: 20, color: Theme.of(context).colorScheme.secondary),
-                                    label: Text(
-                                      AppLocale.myOrders.getString(context),
-                                      style: TextStyle(
-                                        color: Theme.of(context).colorScheme.secondary,
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 16,
-                                      ),
-                                    ),
-                                    onPressed: () {
-                                      Navigator.push(context, MaterialPageRoute(builder: (context) => const OrderListPage()));
-                                    },
-                                  ),
+                      // ── El padding horizontal da "aire" pero NO hay maxWidth
+                      padding: EdgeInsets.symmetric(
+                        horizontal: isMobile ? 8 : 20,
+                        vertical: 12,
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // ── Botón Mis Órdenes ──────────────────────────
+                          SizedBox(
+                            width: double.infinity,
+                            child: TextButton.icon(
+                              style: TextButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(vertical: 16),
+                                backgroundColor: Theme.of(context).colorScheme.secondary.withOpacity(0.1),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              ),
+                              icon: Icon(Icons.list_alt, size: 20, color: Theme.of(context).colorScheme.secondary),
+                              label: Text(
+                                AppLocale.myOrders.getString(context),
+                                style: TextStyle(
+                                  color: Theme.of(context).colorScheme.secondary,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 16,
                                 ),
-                                const SizedBox(height: CustomSpacer.medium),
-
-                                // ── Sección KPIs ───────────────────────────
-                                _buildKpiSection(editMode, isMobile),
-                                const SizedBox(height: CustomSpacer.medium),
-
-                                // ── Sección Gráficos ───────────────────────
-                                _buildChartSection(editMode),
-                              ],
+                              ),
+                              onPressed: () {
+                                Navigator.push(context, MaterialPageRoute(builder: (context) => const OrderListPage()));
+                              },
                             ),
                           ),
-                        ),
+                          const SizedBox(height: CustomSpacer.medium),
+
+                          // ── KPIs ────────────────────────────────────────
+                          _buildKpiSection(editMode, isMobile),
+                          const SizedBox(height: CustomSpacer.medium),
+
+                          // ── Gráficos ─────────────────────────────────────
+                          _buildChartSection(editMode),
+
+                          // Espacio al fondo para que el FAB no tape nada
+                          if (editMode) const SizedBox(height: 80),
+                        ],
                       ),
                     ),
             ),
@@ -430,60 +536,40 @@ class _DashboardPageState extends State<DashboardPage> {
     );
   }
 
-  // ─── Sección KPIs con drag & drop ─────────────────────────────────────────
+  // ─── Sección KPIs ─────────────────────────────────────────────────────────
   Widget _buildKpiSection(bool editMode, bool isMobile) {
     final visibleKpis = _dashCtrl.visibleKpis;
-
     if (visibleKpis.isEmpty && !editMode) return const SizedBox.shrink();
 
-    final double kpiWidth = isMobile ? 160.0 : 180.0;
-    const double kpiHeight = 110.0;
+    const double kpiWidth = 170.0;
+    const double kpiHeight = 100.0;
 
-    // En modo edición mostramos el encabezado de sección
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        if (editMode) ...[
-          Row(
-            children: [
-              Icon(Icons.drag_indicator, size: 16, color: Theme.of(context).colorScheme.primary.withOpacity(0.7)),
-              const SizedBox(width: 6),
-              Text(
-                'KPIs — Arrastra para reordenar',
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: Theme.of(context).colorScheme.primary.withOpacity(0.8),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-        ],
+        if (editMode) _sectionLabel('KPIs — Arrastra para reordenar'),
 
         if (visibleKpis.isEmpty)
           _emptySection('No hay KPIs visibles.\nToca "Añadir widget" para agregar.')
         else
           SizedBox(
-            height: kpiHeight + 16, // margen extra para el botón X que sobresale
+            height: kpiHeight + 12, // +12 para el botón X que sobresale arriba
             child: ReorderableListView.builder(
               scrollDirection: Axis.horizontal,
               buildDefaultDragHandles: false,
               physics: const BouncingScrollPhysics(),
               onReorder: _dashCtrl.reorderKpis,
               itemCount: visibleKpis.length,
-              proxyDecorator: (child, index, animation) {
-                return AnimatedBuilder(
-                  animation: animation,
-                  builder: (ctx, c) => Material(
-                    elevation: 8 * animation.value,
-                    color: Colors.transparent,
-                    borderRadius: BorderRadius.circular(14),
-                    child: c,
-                  ),
-                  child: child,
-                );
-              },
+              proxyDecorator: (child, index, animation) => AnimatedBuilder(
+                animation: animation,
+                builder: (ctx, c) => Material(
+                  elevation: 8 * animation.value,
+                  color: Colors.transparent,
+                  borderRadius: BorderRadius.circular(14),
+                  child: c,
+                ),
+                child: child,
+              ),
               itemBuilder: (ctx, index) {
                 final cfg = visibleKpis[index];
                 final data = _KpiData.mock[cfg.id];
@@ -495,7 +581,7 @@ class _DashboardPageState extends State<DashboardPage> {
                   child: Padding(
                     padding: EdgeInsets.only(
                       right: index < visibleKpis.length - 1 ? 12 : 0,
-                      top: 10, // espacio para el botón X que sobresale arriba
+                      top: 10,
                     ),
                     child: SizedBox(
                       width: kpiWidth,
@@ -519,32 +605,15 @@ class _DashboardPageState extends State<DashboardPage> {
     );
   }
 
-  // ─── Sección Gráficos con drag & drop ─────────────────────────────────────
+  // ─── Sección Gráficos ──────────────────────────────────────────────────────
   Widget _buildChartSection(bool editMode) {
     final visibleCharts = _dashCtrl.visibleCharts;
-
     if (visibleCharts.isEmpty && !editMode) return const SizedBox.shrink();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        if (editMode) ...[
-          Row(
-            children: [
-              Icon(Icons.drag_indicator, size: 16, color: Theme.of(context).colorScheme.primary.withOpacity(0.7)),
-              const SizedBox(width: 6),
-              Text(
-                'Gráficos — Arrastra para reordenar',
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: Theme.of(context).colorScheme.primary.withOpacity(0.8),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-        ],
+        if (editMode) _sectionLabel('Gráficos — Arrastra para reordenar · Arrastra el borde inferior para redimensionar'),
 
         if (visibleCharts.isEmpty)
           _emptySection('No hay gráficos visibles.\nToca "Añadir widget" para agregar.')
@@ -555,21 +624,16 @@ class _DashboardPageState extends State<DashboardPage> {
             buildDefaultDragHandles: false,
             onReorder: _dashCtrl.reorderCharts,
             itemCount: visibleCharts.length,
-            proxyDecorator: (child, index, animation) {
-              return AnimatedBuilder(
-                animation: animation,
-                builder: (ctx, c) => Material(
-                  elevation: 8 * animation.value,
-                  color: Colors.transparent,
-                  child: c,
-                ),
-                child: child,
-              );
-            },
-            itemBuilder: (ctx, index) {
-              final cfg = visibleCharts[index];
-              return _buildChartItem(cfg, index, editMode);
-            },
+            proxyDecorator: (child, index, animation) => AnimatedBuilder(
+              animation: animation,
+              builder: (ctx, c) => Material(
+                elevation: 8 * animation.value,
+                color: Colors.transparent,
+                child: c,
+              ),
+              child: child,
+            ),
+            itemBuilder: (ctx, index) => _buildChartItem(visibleCharts[index], index, editMode),
           ),
       ],
     );
@@ -578,10 +642,8 @@ class _DashboardPageState extends State<DashboardPage> {
   // ─── Ítem de gráfico individual ────────────────────────────────────────────
   Widget _buildChartItem(DashboardWidgetConfig cfg, int index, bool editMode) {
     final lang = Localizations.localeOf(context).languageCode;
-    final isExpanded = cfg.isExpanded;
 
     Widget? chartWidget;
-
     if (cfg.id == WidgetId.chartSalesYTD && Charts.salesYTDBySalesRep != null) {
       chartWidget = GraphicBarMetricCard(
         titleBuilder: (ctx, offset) {
@@ -611,30 +673,23 @@ class _DashboardPageState extends State<DashboardPage> {
       );
     }
 
-    // Si el endpoint del gráfico no está habilitado, no mostramos nada
     if (chartWidget == null) return SizedBox(key: ValueKey(cfg.id));
 
     return Padding(
       key: ValueKey(cfg.id),
-      padding: EdgeInsets.only(bottom: index > 0 ? CustomSpacer.medium : 0),
+      padding: EdgeInsets.only(bottom: index > 0 ? CustomSpacer.medium : 0, top: index == 0 ? 0 : 0),
       child: Stack(
+        clipBehavior: Clip.none,
         children: [
-          // Wrapper animado para la altura (expandir/contraer)
-          AnimatedContainer(
-            duration: const Duration(milliseconds: 320),
-            curve: Curves.easeInOut,
-            constraints: BoxConstraints(
-              minHeight: 0,
-              maxHeight: isExpanded ? 640 : 420,
-            ),
-            child: OverflowBox(
-              maxHeight: double.infinity,
-              alignment: Alignment.topCenter,
-              child: chartWidget,
-            ),
+          // Gráfico con resize handle
+          _ResizableChartCard(
+            initialHeight: cfg.chartHeight,
+            editMode: editMode,
+            onHeightChanged: (h) => _dashCtrl.setChartHeight(cfg.id, h),
+            child: chartWidget,
           ),
 
-          // Barra de controles en modo edición
+          // Controles flotantes en modo edición (esquina superior derecha)
           if (editMode)
             Positioned(
               top: 8,
@@ -642,53 +697,21 @@ class _DashboardPageState extends State<DashboardPage> {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // Drag handle
+                  // Drag handle para reordenar
                   ReorderableDragStartListener(
                     index: index,
-                    child: Container(
-                      padding: const EdgeInsets.all(6),
-                      decoration: BoxDecoration(
-                        color: Theme.of(context).colorScheme.surfaceContainerHighest,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Icon(
-                        Icons.drag_indicator,
-                        size: 18,
-                        color: Theme.of(context).colorScheme.primary,
-                      ),
+                    child: _controlButton(
+                      icon: Icons.drag_indicator,
+                      tooltip: 'Mover gráfico',
                     ),
                   ),
                   const SizedBox(width: 6),
-
-                  // Expandir / Contraer
-                  GestureDetector(
-                    onTap: () => _dashCtrl.toggleExpanded(cfg.id),
-                    child: Container(
-                      padding: const EdgeInsets.all(6),
-                      decoration: BoxDecoration(
-                        color: Theme.of(context).colorScheme.surfaceContainerHighest,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Icon(
-                        isExpanded ? Icons.fullscreen_exit : Icons.fullscreen,
-                        size: 18,
-                        color: Theme.of(context).colorScheme.primary,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 6),
-
-                  // Ocultar
-                  GestureDetector(
+                  // Ocultar gráfico
+                  _controlButton(
+                    icon: Icons.close,
+                    tooltip: 'Ocultar gráfico',
+                    color: Colors.red.shade400,
                     onTap: () => _dashCtrl.hideWidget(cfg.id),
-                    child: Container(
-                      padding: const EdgeInsets.all(6),
-                      decoration: BoxDecoration(
-                        color: Colors.red.shade400,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: const Icon(Icons.close, size: 18, color: Colors.white),
-                    ),
                   ),
                 ],
               ),
@@ -698,7 +721,53 @@ class _DashboardPageState extends State<DashboardPage> {
     );
   }
 
-  // ─── Widget de sección vacía ───────────────────────────────────────────────
+  // ─── Helpers de UI ─────────────────────────────────────────────────────────
+  Widget _sectionLabel(String text) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        children: [
+          Icon(Icons.drag_indicator, size: 15, color: Theme.of(context).colorScheme.primary.withOpacity(0.7)),
+          const SizedBox(width: 5),
+          Flexible(
+            child: Text(
+              text,
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                color: Theme.of(context).colorScheme.primary.withOpacity(0.8),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _controlButton({
+    required IconData icon,
+    String? tooltip,
+    Color? color,
+    VoidCallback? onTap,
+  }) {
+    final cs = Theme.of(context).colorScheme;
+    return GestureDetector(
+      onTap: onTap,
+      child: Tooltip(
+        message: tooltip ?? '',
+        child: Container(
+          padding: const EdgeInsets.all(7),
+          decoration: BoxDecoration(
+            color: color ?? cs.surfaceContainerHighest,
+            borderRadius: BorderRadius.circular(8),
+            boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.15), blurRadius: 4)],
+          ),
+          child: Icon(icon, size: 17, color: color != null ? Colors.white : cs.primary),
+        ),
+      ),
+    );
+  }
+
   Widget _emptySection(String message) {
     return Container(
       width: double.infinity,
@@ -707,7 +776,6 @@ class _DashboardPageState extends State<DashboardPage> {
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
           color: Theme.of(context).dividerColor.withOpacity(0.3),
-          style: BorderStyle.solid,
         ),
       ),
       child: Column(
@@ -717,10 +785,7 @@ class _DashboardPageState extends State<DashboardPage> {
           Text(
             message,
             textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 13,
-              color: Theme.of(context).colorScheme.onSurface.withOpacity(0.4),
-            ),
+            style: TextStyle(fontSize: 13, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.4)),
           ),
         ],
       ),
