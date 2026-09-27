@@ -252,6 +252,10 @@ class _DashboardPageState extends State<DashboardPage> {
   DateTime? lastBackPressed;
   bool _isLoading = true;
 
+  // Variables para reordenamiento de gráficos
+  String? _draggingChartId;
+  int? _hoverChartIndex;
+
   Map<String, double> _salesYTDBySalesRepData = {};
   Map<String, double> _salesPerDayByProductCategoryData = {};
 
@@ -671,29 +675,64 @@ class _DashboardPageState extends State<DashboardPage> {
         if (visibleCharts.isEmpty)
           _emptySection('No hay gráficos visibles.\nToca "Añadir widget" para agregar.')
         else
-          ReorderableWrap(
-            spacing: CustomSpacer.medium,
-            runSpacing: CustomSpacer.medium,
-            onReorder: _dashCtrl.reorderCharts,
-            buildDraggableFeedback: (context, constraints, child) {
-              return Material(
-                color: Colors.transparent,
-                elevation: 12,
-                borderRadius: BorderRadius.circular(16),
-                child: child,
+          Builder(
+            builder: (context) {
+              // 1. Clonar lista para la reordenación visual en tiempo real
+              List<DashboardWidgetConfig> displayList = List.from(visibleCharts);
+
+              if (editMode && _draggingChartId != null && _hoverChartIndex != null) {
+                final draggingItem = displayList.firstWhere((c) => c.id == _draggingChartId, orElse: () => displayList.first);
+                displayList.removeWhere((c) => c.id == _draggingChartId);
+                
+                int insertIndex = _hoverChartIndex!;
+                if (insertIndex > displayList.length) insertIndex = displayList.length;
+                
+                displayList.insert(insertIndex, draggingItem);
+              }
+
+              return Wrap(
+                spacing: CustomSpacer.medium,
+                runSpacing: CustomSpacer.medium,
+                children: displayList.asMap().entries.map((entry) {
+                  final index = entry.key;
+                  final cfg = entry.value;
+
+                  final child = _buildChartItem(cfg, editMode, isGhost: cfg.id == _draggingChartId);
+
+                  if (!editMode) return child;
+
+                  return DragTarget<String>(
+                    onWillAcceptWithDetails: (details) {
+                      if (details.data != cfg.id) {
+                        setState(() => _hoverChartIndex = index);
+                        return true;
+                      }
+                      return false;
+                    },
+                    onAcceptWithDetails: (details) {
+                      final oldIndex = visibleCharts.indexWhere((c) => c.id == details.data);
+                      if (oldIndex != -1) {
+                        _dashCtrl.reorderCharts(oldIndex, index);
+                      }
+                      setState(() {
+                        _draggingChartId = null;
+                        _hoverChartIndex = null;
+                      });
+                    },
+                    builder: (context, candidateData, rejectedData) {
+                      return child;
+                    },
+                  );
+                }).toList(),
               );
             },
-            children: List.generate(
-              visibleCharts.length,
-              (index) => _buildChartItem(visibleCharts[index], index, editMode),
-            ),
           ),
       ],
     );
   }
 
   // ─── Ítem de gráfico individual ────────────────────────────────────────────
-  Widget _buildChartItem(DashboardWidgetConfig cfg, int index, bool editMode) {
+  Widget _buildChartItem(DashboardWidgetConfig cfg, bool editMode, {bool isGhost = false}) {
     final lang = Localizations.localeOf(context).languageCode;
     final bool isMobile = MediaQuery.of(context).size.width < 700;
     
@@ -754,7 +793,10 @@ class _DashboardPageState extends State<DashboardPage> {
           isMobile: isMobile,
           onHeightChanged: (h) => _dashCtrl.setChartHeight(cfg.id, h),
           onWidthFactorChanged: (w) => _dashCtrl.setChartWidth(cfg.id, w),
-          child: chartWidget,
+          child: AbsorbPointer(
+            absorbing: editMode,
+            child: chartWidget,
+          ),
         ),
 
         // Controles flotantes en modo edición (esquina superior derecha)
@@ -790,8 +832,45 @@ class _DashboardPageState extends State<DashboardPage> {
                 ],
                 
                 // Drag handle para reordenar
-                _controlButton(
-                  icon: Icons.drag_indicator,
+                Draggable<String>(
+                  data: cfg.id,
+                  onDragStarted: () {
+                    setState(() {
+                      _draggingChartId = cfg.id;
+                      _hoverChartIndex = _dashCtrl.visibleCharts.indexWhere((c) => c.id == cfg.id);
+                    });
+                  },
+                  onDraggableCanceled: (_, __) {
+                    setState(() {
+                      _draggingChartId = null;
+                      _hoverChartIndex = null;
+                    });
+                  },
+                  onDragCompleted: () {
+                    setState(() {
+                      _draggingChartId = null;
+                      _hoverChartIndex = null;
+                    });
+                  },
+                  feedback: Material(
+                    type: MaterialType.transparency,
+                    child: SizedBox(
+                      width: itemWidth,
+                      height: cfg.chartHeight,
+                      child: Container(
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(16),
+                          boxShadow: [BoxShadow(color: Colors.black26, blurRadius: 10)],
+                        ),
+                        child: _buildChartItem(cfg, false),
+                      ),
+                    ),
+                  ),
+                  childWhenDragging: Opacity(
+                    opacity: 0.3,
+                    child: _controlButton(icon: Icons.drag_indicator),
+                  ),
+                  child: _controlButton(icon: Icons.drag_indicator),
                 ),
                 const SizedBox(width: 6),
                 // Ocultar gráfico
@@ -812,17 +891,23 @@ class _DashboardPageState extends State<DashboardPage> {
         key: ValueKey(cfg.id),
         width: parentWidth,
         alignment: cfg.chartAlignment == 'center' ? Alignment.center : Alignment.centerRight,
-        child: SizedBox(
-          width: itemWidth,
-          child: chartBox,
+        child: Opacity(
+          opacity: isGhost ? 0.3 : 1.0,
+          child: SizedBox(
+            width: itemWidth,
+            child: chartBox,
+          ),
         ),
       );
     }
 
-    return SizedBox(
-      key: ValueKey(cfg.id),
-      width: itemWidth,
-      child: chartBox,
+    return Opacity(
+      opacity: isGhost ? 0.3 : 1.0,
+      child: SizedBox(
+        key: ValueKey(cfg.id),
+        width: itemWidth,
+        child: chartBox,
+      ),
     );
   }
 
