@@ -18,6 +18,7 @@ import '../../../localization/app_locale.dart';
 import '../order/my_order.dart';
 import 'dashboard_kpi_card.dart';
 import 'dashboard_config.dart';
+import 'package:reorderables/reorderables.dart';
 
 // ─── Datos de ejemplo de KPIs ────────────────────────────────────────────────
 // TODO: Reemplazar con datos reales desde el endpoint de dashboard KPIs
@@ -167,7 +168,7 @@ class _ResizableChartCardState extends State<_ResizableChartCard> {
           if (_isDragging)
             Positioned(
               top: 8,
-              right: 12,
+              left: 12,
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
@@ -613,27 +614,27 @@ class _DashboardPageState extends State<DashboardPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        if (editMode) _sectionLabel('Gráficos — Arrastra para reordenar · Arrastra el borde inferior para redimensionar'),
+        if (editMode) _sectionLabel('Gráficos — Arrastra el icono para mover · Arrastra el borde inferior para redimensionar'),
 
         if (visibleCharts.isEmpty)
           _emptySection('No hay gráficos visibles.\nToca "Añadir widget" para agregar.')
         else
-          ReorderableListView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            buildDefaultDragHandles: false,
+          ReorderableWrap(
+            spacing: CustomSpacer.medium,
+            runSpacing: CustomSpacer.medium,
             onReorder: _dashCtrl.reorderCharts,
-            itemCount: visibleCharts.length,
-            proxyDecorator: (child, index, animation) => AnimatedBuilder(
-              animation: animation,
-              builder: (ctx, c) => Material(
-                elevation: 8 * animation.value,
+            buildDraggableFeedback: (context, constraints, child) {
+              return Material(
                 color: Colors.transparent,
-                child: c,
-              ),
-              child: child,
+                elevation: 12,
+                borderRadius: BorderRadius.circular(16),
+                child: child,
+              );
+            },
+            children: List.generate(
+              visibleCharts.length,
+              (index) => _buildChartItem(visibleCharts[index], index, editMode),
             ),
-            itemBuilder: (ctx, index) => _buildChartItem(visibleCharts[index], index, editMode),
           ),
       ],
     );
@@ -642,6 +643,20 @@ class _DashboardPageState extends State<DashboardPage> {
   // ─── Ítem de gráfico individual ────────────────────────────────────────────
   Widget _buildChartItem(DashboardWidgetConfig cfg, int index, bool editMode) {
     final lang = Localizations.localeOf(context).languageCode;
+    final bool isMobile = MediaQuery.of(context).size.width < 700;
+    
+    // Cálculo del ancho dinámico
+    final double paddingHorizontal = isMobile ? 16 : 40;
+    final double parentWidth = MediaQuery.of(context).size.width - paddingHorizontal;
+    final double spacing = CustomSpacer.medium;
+    
+    // En móviles forzamos a 100% (factor 1.0) para que no se vea apretado.
+    final double activeWidthFactor = isMobile ? 1.0 : cfg.chartWidthFactor;
+    
+    double itemWidth = parentWidth;
+    if (activeWidthFactor < 1.0) {
+      itemWidth = (parentWidth * activeWidthFactor) - (spacing / 2);
+    }
 
     Widget? chartWidget;
     if (cfg.id == WidgetId.chartSalesYTD && Charts.salesYTDBySalesRep != null) {
@@ -675,9 +690,9 @@ class _DashboardPageState extends State<DashboardPage> {
 
     if (chartWidget == null) return SizedBox(key: ValueKey(cfg.id));
 
-    return Padding(
+    return SizedBox(
       key: ValueKey(cfg.id),
-      padding: EdgeInsets.only(bottom: index > 0 ? CustomSpacer.medium : 0, top: index == 0 ? 0 : 0),
+      width: itemWidth,
       child: Stack(
         clipBehavior: Clip.none,
         children: [
@@ -697,13 +712,19 @@ class _DashboardPageState extends State<DashboardPage> {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // Drag handle para reordenar
-                  ReorderableDragStartListener(
-                    index: index,
-                    child: _controlButton(
-                      icon: Icons.drag_indicator,
-                      tooltip: 'Mover gráfico',
+                  // Botón para alternar ancho (50% / 100%)
+                  if (!isMobile)
+                    _controlButton(
+                      icon: cfg.chartWidthFactor == 1.0 ? Icons.width_normal : Icons.width_wide,
+                      tooltip: cfg.chartWidthFactor == 1.0 ? 'Reducir a mitad' : 'Expandir al ancho total',
+                      onTap: () => _dashCtrl.toggleChartWidth(cfg.id),
                     ),
+                  if (!isMobile) const SizedBox(width: 6),
+                  
+                  // Drag handle para reordenar (No usamos ReorderableDragStartListener porque ReorderableWrap usa un toque prolongado)
+                  _controlButton(
+                    icon: Icons.drag_indicator,
+                    tooltip: 'Mantén presionado y arrastra',
                   ),
                   const SizedBox(width: 6),
                   // Ocultar gráfico
